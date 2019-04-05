@@ -57,7 +57,21 @@ library(dtwclust)
 # install.packages("nngeo")
 library(nngeo)
 library(tidyr)
+# https://github.com/topics/time-series-clustering?l=r
+# https://www.r-bloggers.com/tsrepr-use-case-clustering-time-series-representations-in-r/
+# https://github.com/PetoLau/TSrepr
+# https://github.com/lnferreira/time_series_clustering_via_community_detection/tree/gh-pages/R
+# https://hal.archives-ouvertes.fr/tel-01394280v2/document
+# https://pdfs.semanticscholar.org/e181/49ae37583332f06e8288726a786077934ed9.pdf
 # http://sisifospage.tech/2017-05-15-time-series-clustering-pulsi.html
+# https://rpubs.com/Hailstone/346625
+# https://cran.r-project.org/web/packages/HiClimR/HiClimR.pdf
+# https://stackoverflow.com/questions/53440909/polygon-from-cluster-of-lat-long-points-in-r
+# https://gis.stackexchange.com/questions/249762/calculating-distances-between-two-geometry-columns-using-r
+# https://cran.r-project.org/web/packages/nngeo/vignettes/intro.pdf
+# https://www.youtube.com/watch?v=Tf2CSDDTezI
+# http://rstudio-pubs-static.s3.amazonaws.com/398402_abe1a0343a4e4e03977de8f3791e96bb.html
+# https://rpubs.com/janoskaz/10351
 IDEAM_qc_chirps <- read_ideam(filename  = 'IDEAM_qc_and_chirps.json',
                               type = "rio")
 
