@@ -57,8 +57,8 @@ filter_date <- function(x){
 IDEAM_qc_chirps <- read_ideam(filename  = 'IDEAM_qc_and_chirps.json',
                               type = "rio")
 
-IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
-  dplyr::select(-chirps)
+# IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
+  # dplyr::select(-chirps)
 
 # write_ideam(IDEAM_qc_chirps, filename = "IDEAM_qc_and_chirps.json", type = "rio")
 
