@@ -164,7 +164,8 @@ length_cluster <- pc.l2@clusinfo %>%
   dplyr::select(size) %>%
   mutate(cluster = as_factor(row_number()))
 
-
+write_csv(id_cluster, "id_cluster.csv")
+write_csv(length_cluster, "length_cluster.csv")
 IDEAM_qc_chirps <- bind_cols(IDEAM_qc_chirps, id_cluster)
 
 IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
@@ -181,12 +182,59 @@ cluster_sf <- IDEAM_qc_chirps %>%
   # dplyr::select(size, cluster, id)  %>%
   filter(size > 10 )
 
+coords <- cluster_sf %>%
+  geometry_to_lonlat %>%
+  dplyr::select(lat,lon, cluster)
+
+res <- dbscan(coords, eps = .33, minPts = 10)
+clust <- res$cluster %>%
+  tibble::enframe(value = "cluster") %>%
+  dplyr::select(cluster)
+
+cluster_sf <- cluster_sf %>%
+  bind_cols(data_spatial)
+
+size_cluster <- cluster_sf %>%
+  as_tibble() %>%
+  count(cluster_inside) 
+
+cluster_sf <- cluster_sf %>%
+  left_join(size_cluster, by = "cluster_inside") %>%
+  filter(n > 10)
+
+clust_Dist <- tibble::enframe(res$Best.partition, value = "cluster")%>%
+  dplyr::select(cluster)
+
+clust <- clust_Dist
+cluster_sf <- bind_cols(cluster_sf, clust) 
+cluster_sf <- cluster_sf %>%
+  # filter(cluster1>0) %>%
+  mutate(cluster1 =as_factor(cluster1))
+
+cluster <- cluster_sf %>%
+  geometry_to_lonlat %>%
+  dplyr::select(cluster, cluster1) %>%
+  mutate_all(~as.numeric(.)) %>%
+  mutate(cluster_s_t = cluster*cluster1) 
+
+cluster_sf <- bind_cols(cluster_sf, cluster) 
+
+cluster_sf <- cluster_sf %>%
+  mutate(cluster_s_t = as_factor(cluster_s_t))
 cluster_sf %>%
   as_tibble() %>%
   mutate(Elevation = as.numeric(Elevation)) %>%
   group_by(cluster) %>%
   summarise(avg_elev = mean(Elevation), sd_elev = sd(Elevation))
 
+size_cluster <- cluster_sf %>%
+  as_tibble() %>%
+  count(cluster1) 
+
+cluster_sf <- cluster_sf %>%
+  left_join(size_cluster, by = "cluster1") %>%
+  filter(n > 10)
+  
 # cluster_sf <- IDEAM_qc_chirps %>%
 #   filter(cluster != "1")
 
@@ -197,16 +245,16 @@ colombia <- read_sf(dsn = here('data', 'municipios_wgs84.shp')) %>%
   summarize()
 
 y = ggplot()+
-  geom_sf(data = cluster_sf, aes(color = cluster, fill = cluster)) +
+  geom_sf(data = cluster_sf, aes(color = cluster_inside, fill = cluster_inside)) +
   geom_sf(data = colombia, fill = NA, color = gray(.01) ,size=0.125) +
   theme_bw() +
   # ggthemes::theme_map() +
   # guides(color = FALSE) +
   scale_color_viridis_d() +
   scale_fill_viridis_d()
-  ggtitle(label = "28 Weather Stations with Quality Control (with, tmax, tmin, prec, sbright)", 
-          subtitle = "1981-2010")
-ggsave('cluster.pdf', width = 15, height =  10, dpi = 300) 
+  # ggtitle(label = "28 Weather Stations with Quality Control (with, tmax, tmin, prec, sbright)", 
+          # subtitle = "1981-2010")
+ggsave('cluster_inside_2.pdf', width = 15, height =  10, dpi = 300) 
 # pc <- tsclust(x, type = "partitional", k = 5, 
 #               distance = "dtw_basic", centroid = "pam", 
 #               seed = 3247L, trace = TRUE)

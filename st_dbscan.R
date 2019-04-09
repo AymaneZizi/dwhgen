@@ -40,11 +40,11 @@ geometry_to_lonlat <- function(x) {
 }
 
 traj <- IDEAM_qc_chirps %>%
-  filter(row_number() <= 5) %>%
+  # filter(row_number() <= 5) %>%
   geometry_to_lonlat %>%
-  dplyr::select(lat,lon, qc_climate) %>%
-  unnest() %>%
-  dplyr::select(-year,-month,-year)
+  dplyr::select(lat,lon) #%>%
+  # unnest() %>%
+  # dplyr::select(-year,-month,-year)
 
 x <- dplyr::select(traj, lon) %>%
   pull
@@ -52,23 +52,51 @@ x <- dplyr::select(traj, lon) %>%
 y <- dplyr::select(traj, lat) %>%
   pull
 
-time <- dplyr::select(traj, Date) %>%
-  mutate(Date = anytime::anydate(Date)) 
+time <- seq(ymd('1981-01-01'),ymd('2010-12-31'),by='day')
+time <- strptime(time, "%Y-%m-%d")
+  # dplyr::select(traj, Date) %>%
+  # mutate(Date = anytime::anydate(Date)) 
   
 stdbscan = function (traj, 
                      x, 
                      y, 
                      time, 
-                     eps, 
-                     eps2, 
-                     minpts, 
+                     eps = 0.3, 
+                     eps2 = 121190.58, 
+                     minpts = 10, 
                      cldensity = TRUE) { 
   
   countmode = 1:length(x)
   seeds = TRUE
   
-  data_spatial<- as.matrix(dist(cbind(y, x)))
-  data_temporal<- as.matrix(dist(time))
+  data_spatial <- as.matrix(dist(cbind(y, x)))
+  
+  data_spatial <- coords %>%
+    group_split(cluster) %>%
+    purrr::map(.x = ., .f = function(x){
+      res <- x %>%
+        dplyr::select(-cluster) %>%
+        dbscan(eps = .33, minPts = 10)
+      
+      clust <- res$cluster %>%
+        tibble::enframe(value = "cluster_sp")  %>%
+        dplyr::select(cluster_sp)
+      
+      x <- x %>%
+        bind_cols(clust) %>%
+        mutate(cluster_inside = glue::glue("cluster_{cluster}_{cluster_sp}"))
+        
+        return(x)
+    }) %>%
+    bind_rows() %>%
+    dplyr::select(cluster_inside)
+  
+  data_temporal<- as.matrix(pc.l2@distmat)
+  dd <- fuse(data_spatial, data_temporal, weights = c(0.5, 0.5))
+  # hc <- hclust(dd, "ave")
+  res <- NbClust(diss=dd, distance = NULL, min.nc=20, max.nc=50, 
+               method = "ward.D2", index = "silhouette")
+  
   n <- nrow(data_spatial)
   
   classn <- cv <- integer(n)
@@ -81,7 +109,7 @@ stdbscan = function (traj,
       unclass <- (1:n)[cv < 1]
     
     if (cv[i] == 0) {
-      reachables <- intersect(unclass[data_spatial[i, unclass] <= eps],  unclass[data_temporal[i, unclass] <= eps2])
+      reachables <- intersect(unclass[data_spatial[i, unclass] <= eps],  unclass[data_temporal[i, unclass] <=eps2])
       if (length(reachables) + classn[i] < minpts)
         cv[i] <- (-1)                    
       else {
