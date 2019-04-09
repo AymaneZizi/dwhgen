@@ -122,7 +122,7 @@ text(st_coordinates(IDEAM_qc_chirps[1:5, ])[, 1],st_coordinates(towns[1:5, ])[, 
 
 x <- IDEAM_qc_chirps %>%
   # filter(percent_na <= 25)
-  geometry_to_lonlat %>%
+  # geometry_to_lonlat %>%
   mutate(rainfall = purrr::map(.x = qc_climate, 
                                .f = climate_var, var = "prec_qc")) %>% 
   # filter(row_number() <= 10) %>%
@@ -140,7 +140,7 @@ series <- reinterpolate(x, new.length = max(lengths(x)))
 series <- series
 labels <- IDEAM_qc_chirps %>%
   # filter(percent_na <= 25)
-  geometry_to_lonlat %>%
+  # geometry_to_lonlat %>%
   mutate(rainfall = purrr::map(.x = qc_climate, 
                                .f = climate_var, var = "prec_qc")) %>% 
   # filter(row_number() <= 10) %>%
@@ -154,10 +154,80 @@ pc.l2 <- tsclust(series, k = 20L,
                  centroid = "pam",seed = 3247, 
                  trace = TRUE,
                  distance = "dtw_basic")
-pc <- tsclust(x, type = "partitional", k = 5, 
-              distance = "dtw_basic", centroid = "pam", 
-              seed = 3247L, trace = TRUE)
-pc@cluster 
+
+id_cluster <- pc.l2@cluster %>%
+  tibble::enframe(value = "cluster") %>%
+  dplyr::select(cluster)
+
+length_cluster <- pc.l2@clusinfo %>%
+  as_tibble() %>%
+  dplyr::select(size) %>%
+  mutate(cluster = as_factor(row_number()))
+
+
+IDEAM_qc_chirps <- bind_cols(IDEAM_qc_chirps, id_cluster)
+
+IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
+  # sf::st_as_sf(coords = c("LatitudeDD", "LongitudeDD")) %>%
+  sf::st_as_sf(coords = c("lon", "lat")) %>%
+  st_set_crs("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") %>%
+  st_transform("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
+  mutate(cluster = as_factor(cluster))
+
+cluster_sf <- IDEAM_qc_chirps %>%
+  left_join(length_cluster, by = "cluster") %>%
+  # dplyr::select(size, cluster, id)  %>%
+  filter(size > 10 )
+
+cluster_sf %>%
+  as_tibble() %>%
+  mutate(Elevation = as.numeric(Elevation)) %>%
+  group_by(cluster) %>%
+  summarise(avg_elev = mean(Elevation), sd_elev = sd(Elevation))
+
+# cluster_sf <- IDEAM_qc_chirps %>%
+#   filter(cluster != "1")
+
+library(here)
+colombia <- read_sf(dsn = here('data', 'municipios_wgs84.shp')) %>%
+  st_transform("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
+  group_by(NOM_DEPART) %>%
+  summarize()
+
+y = ggplot()+
+  geom_sf(data = cluster_sf, aes(color = cluster, fill = cluster)) +
+  geom_sf(data = colombia, fill = NA, color = gray(.01) ,size=0.125) +
+  theme_bw() +
+  # ggthemes::theme_map() +
+  # guides(color = FALSE) +
+  scale_color_viridis_d() +
+  scale_fill_viridis_d()
+  ggtitle(label = "28 Weather Stations with Quality Control (with, tmax, tmin, prec, sbright)", 
+          subtitle = "1981-2010")
+ggsave('cluster.pdf', width = 15, height =  10, dpi = 300) 
+# pc <- tsclust(x, type = "partitional", k = 5, 
+#               distance = "dtw_basic", centroid = "pam", 
+#               seed = 3247L, trace = TRUE)
+
+
+wheater_filter <- IDEAM_qc_chirps # %>%
+  # filter(cluster > 1)
+
+x = wheater_filter %>%
+  filter(cluster == 2)
+
+
+x <- x %>%
+  dplyr::select(Code, qc_climate) %>%
+  unnest() %>%
+  group_by(Code) %>%
+  mutate(id = row_number()) %>%
+  spread(Code, prec_qc) %>%
+  dplyr::select(-id, -Date, -month, -year, -day, -prec_chirps)
+
+pc <- pca(x.na, nPcs=5, method="nlpca")
 
 x <- IDEAM_qc_chirps %>%
   # filter(percent_na <= 25)
