@@ -49,14 +49,21 @@ climate_var <- function(x, var = "prec_qc"){
   x %>%
     dplyr::select(!!var)
 }
-library(rio)
-library(jsonlite)
-# install.packages("dtwclust")
-library(dplyr)
-library(dtwclust)
-# install.packages("nngeo")
-library(nngeo)
-library(tidyr)
+
+geometry_to_lonlat <- function(x) {
+  if (any(sf::st_geometry_type(x) != "POINT")) {
+    stop("Selecting non-points isn't implemented.")
+  }
+  coord_df <- sf::st_transform(x, sf::st_crs("+proj=longlat +datum=WGS84")) %>%
+    sf::st_coordinates() %>%
+    dplyr::as_tibble() %>%
+    dplyr::select(X, Y) %>%
+    dplyr::rename(lon = X, lat = Y)
+  out <- sf::st_set_geometry(x, NULL) %>%
+    dplyr::bind_cols(coord_df)
+  return(out)
+}
+
 # https://github.com/topics/time-series-clustering?l=r
 # https://www.r-bloggers.com/tsrepr-use-case-clustering-time-series-representations-in-r/
 # https://github.com/PetoLau/TSrepr
@@ -72,26 +79,164 @@ library(tidyr)
 # https://www.youtube.com/watch?v=Tf2CSDDTezI
 # http://rstudio-pubs-static.s3.amazonaws.com/398402_abe1a0343a4e4e03977de8f3791e96bb.html
 # https://rpubs.com/janoskaz/10351
+
+library(rio)
+library(jsonlite)
+# install.packages("dtwclust")
+library(dplyr)
+library(dtwclust)
+# install.packages("nngeo")
+library(nngeo)
+library(tidyr)
+library(forcats)
+library(lubridate)
+library(here)
+library(dbscan)
+library(glue)
+
+## 819 estaciones para precipitacion
 IDEAM_qc_chirps <- read_ideam(filename  = 'IDEAM_qc_and_chirps.json',
                               type = "rio")
 
-
+## se filtran las series para los años 1981-2010
 
 IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
   mutate(qc_climate = purrr::map(.x = qc_climate, .f = filter_date))
+
+## convertir estaciones de IDEAM a un objeto espacial
 
 IDEAM_qc_chirps <- IDEAM_qc_chirps %>%
   sf::st_as_sf(coords = c("lon", "lat")) %>%
   st_set_crs( "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
   st_transform("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
+## Cada estacion climatica como una lista (solo precipitacion)
+x <- IDEAM_qc_chirps %>%
+  geometry_to_lonlat %>% 
+  mutate(rainfall = purrr::map(.x = qc_climate, 
+                               .f = climate_var, var = "prec_qc")) %>% 
+  dplyr::select(Code, rainfall) %>%
+  unnest() %>%
+  group_split(Code, keep = F) %>% 
+  purrr::map(.x = ., .f = function(x){
+    pull(x) %>% na.omit
+    }
+    )
+
+## interpolar para tener el mismo tamaño en todas las series de tiempo
+series <- reinterpolate(x, new.length = max(lengths(x)))
+
+series <- series
+labels <- IDEAM_qc_chirps %>%
+  mutate(rainfall = purrr::map(.x = qc_climate, 
+                               .f = climate_var, var = "prec_qc")) %>% 
+  dplyr::select(Code) %>%
+  unnest() %>%
+  group_keys(Code) #%>%
+  # pull()
+
+## realizar los cluster para 20 medoides (averiguar bien que son medoides)
+pc.l2 <- tsclust(series, k = 20L, 
+                 centroid = "pam",seed = 3247, 
+                 trace = TRUE,
+                 distance = "dtw_basic")
+
+id_cluster <- pc.l2@cluster %>%
+  tibble::enframe(value = "cluster_time") %>%
+  dplyr::select(cluster_time) %>%
+  mutate(cluster_time = as_factor(cluster_time))
+
+length_cluster <- pc.l2@clusinfo %>%
+  as_tibble() %>%
+  dplyr::select(size) %>%
+  mutate(cluster = as_factor(row_number()))
+
+time_series_cl <- bind_cols(labels, id_cluster) %>%
+  left_join(length_cluster, by = c("cluster_time" = "cluster"))
+
+write_csv(time_series_cl, "cluster_dtw_prec.csv")
+
+## cluster para las zonas espaciales dentro de cada cluster determinado por el paso anterior
+
+## extraer las coordenadas para realizar el cluster
+
+
+cluster_sf <- IDEAM_qc_chirps %>%
+  left_join(length_cluster, by = "cluster") %>%
+  filter(size > 10 )
+
+coords <- cluster_sf %>%
+  geometry_to_lonlat %>%
+  dplyr::select(lat,lon, Code, cluster)
+
+
+make_stdbscan <- function(x, vars = c("lat", "lon")){
+  
+  # x <- coords %>%
+  #   group_split(cluster) %>% 
+  #   purrr::pluck(1)
+  res <- x %>%
+    dplyr::select(!!vars) %>%
+    dbscan::dbscan(eps = .33, minPts = 10)
+  
+  clust <- res$cluster %>%
+    tibble::enframe(value = "cluster_sp")  %>%
+    dplyr::select(cluster_sp)
+  
+  x <- x %>%
+    bind_cols(clust) %>%
+    filter(cluster_sp >0) %>%
+    mutate(cluster_inside = glue::glue("time_{cluster}_sp_{cluster_sp}")) %>%
+    mutate(cluster_inside = as_factor(cluster_inside))
+  
+  return(x)
+}
+
+data_spatial <- coords %>%
+  group_split(cluster) %>% 
+  purrr::map(.x = ., .f = make_stdbscan) %>%
+  bind_rows() %>%
+  dplyr::select(Code, cluster_inside)
+
+# data_spatial <- coords %>%
+#   group_split(cluster) %>%
+#   purrr::map(.x = ., .f = function(x){
+#     res <- x %>%
+#       dplyr::select(-cluster) %>%
+#       dbscan(eps = .33, minPts = 8)
+# 
+#     clust <- res$cluster %>%
+#       tibble::enframe(value = "cluster_sp")  %>%
+#       dplyr::select(cluster_sp)
+# 
+#     x <- x %>%
+#       bind_cols(clust) %>%
+#       mutate(cluster_inside = glue::glue("cluster_{cluster}_{cluster_sp}"))
+# 
+#     return(x)
+#   }) %>%
+#   bind_rows() %>%
+#   dplyr::select(cluster_inside)
+
+
+
+cluster_sf <- cluster_sf %>%
+  inner_join(data_spatial, by = "Code")
+
+size_cluster <- cluster_sf %>%
+  as_tibble() %>%
+  count(cluster_inside) 
+
+cluster_sf <- cluster_sf %>%
+  left_join(size_cluster, by = "cluster_inside") %>%
+  filter(n > 10)
+
+
+
+
 near_stations <- IDEAM_qc_chirps %>% 
   dplyr::select(qc_climate)
 
-# nn %>%
-#   group_by(Code)
-# near_stations
-library(here)
 install.packages("HiClimR")
 colombia <- read_sf(dsn = here('data', 'municipios_wgs84.shp')) %>%
   st_transform("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0") %>%
@@ -120,40 +265,8 @@ text(st_coordinates(IDEAM_qc_chirps[1:5, ])[, 1],st_coordinates(IDEAM_qc_chirps[
 text(st_coordinates(IDEAM_qc_chirps[1:5, ])[, 1],st_coordinates(towns[1:5, ])[, 2],1:5, pos = 4)
 
 
-x <- IDEAM_qc_chirps %>%
-  # filter(percent_na <= 25)
-  # geometry_to_lonlat %>%
-  mutate(rainfall = purrr::map(.x = qc_climate, 
-                               .f = climate_var, var = "prec_qc")) %>% 
-  # filter(row_number() <= 10) %>%
-  dplyr::select(Code, rainfall) %>%
-  # group_split(Code, keep = F)
-  unnest() %>%
-  group_split(Code, keep = F) %>% 
-  purrr::map(.x = ., .f = function(x){pull(x) %>% na.omit})
-  # group_by(Code) %>%
-  # mutate(id = row_number()) %>% 
-  # spread(Code, prec_qc)
 
-series <- reinterpolate(x, new.length = max(lengths(x)))
 
-series <- series
-labels <- IDEAM_qc_chirps %>%
-  # filter(percent_na <= 25)
-  # geometry_to_lonlat %>%
-  mutate(rainfall = purrr::map(.x = qc_climate, 
-                               .f = climate_var, var = "prec_qc")) %>% 
-  # filter(row_number() <= 10) %>%
-  dplyr::select(Code) %>%
-  # group_split(Code, keep = F)
-  unnest() %>%
-  group_keys(Code) %>%
-  pull
-
-pc.l2 <- tsclust(series, k = 20L, 
-                 centroid = "pam",seed = 3247, 
-                 trace = TRUE,
-                 distance = "dtw_basic")
 
 id_cluster <- pc.l2@cluster %>%
   tibble::enframe(value = "cluster") %>%
