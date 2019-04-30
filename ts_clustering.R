@@ -232,6 +232,9 @@ cluster_sf <- cluster_sf %>%
   filter(n > 10)
 
 
+write_ideam(cluster_sf %>% geometry_to_lonlat, filename = "IDEAM_clustering_time_spatial_1981-2010.json", type = "rio")
+
+##################################################33
 
 
 near_stations <- IDEAM_qc_chirps %>% 
