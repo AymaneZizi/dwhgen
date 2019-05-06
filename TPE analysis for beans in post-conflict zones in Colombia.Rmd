@@ -1,0 +1,85 @@
+---
+title: "TPE analysis for beans in post-conflict zones in Colombia"
+author: "J. Mesa, P. Alvarez, J. Ramirez "
+date: "May 3, 2019"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.path = "figures/")
+```
+
+## R Markdown
+
+```{r loadlib, echo=F, results='hide', message=F, warning=F,  dpi = 50, fig.width = 10, fig.height= 10}
+library(sf)
+library(ggplot2)
+library(forcats)
+library(ggspatial)
+library(dplyr)
+library(tibble)
+post_conflict <- st_read(dsn = "D:/CIAT/BACO/scripts/data/post_conflict/conflicto.shp")
+
+
+post_conflict <- post_conflict %>% 
+  mutate(Indc___ = as_factor(Indc___)) %>% 
+  mutate(Indc___ = fct_relevel(Indc___, c("Bajo", "Medio bajo", "Medio", "Alto", "Muy Alto"))) %>% 
+  mutate(Indc___ = fct_relevel(Indc___, rev))
+
+ggplot() +
+  geom_sf(data = post_conflict, aes(fill = Indc___)) +
+  scale_fill_viridis_d("incidencia del conflicto armado", na.translate = F) +
+  theme_bw() +
+   labs(x = NULL, y = NULL,
+       title = "Índice de incidencia del conflicto armado (2002-2013)",
+       subtitle = "Tomado de: Departamento Nacional de Planeación – Grupo de Proyectos Especiales",
+       caption = "DNP") +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"),
+        style = north_arrow_fancy_orienteering) +
+  # theme(
+  #       legend.position="bottom",
+  #       legend.direction = "horizontal"
+  #     ) +
+  theme(legend.position="bottom",
+        legend.key.width = unit(2, "cm"), 
+        legend.key.height = unit(0.7, "cm"))+
+
+   guides(fill = guide_legend(nrow=1,override.aes = list(alpha = 1), 
+                             label.position="bottom",
+                             label.hjust = -0.05, 
+                              title.position = "top"))
+
+  
+  
+  # geom_sf(data = colombia, fill = NA, color = gray(.01) ,size=0.125) +
+  # theme_bw() +
+  # # ggthemes::theme_map() +
+  # guides(color = FALSE) +
+  # ggtitle(label = "28 Weather Stations with Quality Control (with, tmax, tmin, prec, sbright)", 
+  #         subtitle = "1981-2010")
+  # ggsflabel::geom_sf_label_repel(data = palmira, aes(label = Categoria), size = 2.5) 
+```
+
+
+
+
+## Slide with Bullets
+
+- Bullet 1
+- Bullet 2
+- Bullet 3
+
+## Slide with R Output
+
+```{r cars, echo = TRUE}
+summary(cars)
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+

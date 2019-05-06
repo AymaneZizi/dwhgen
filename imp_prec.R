@@ -9,8 +9,8 @@ cluster_sf <- cluster_sf %>%
 library(pcaMethods)
 
 QM <- function(x){
-  obs <- pull(x, prec_qc_qm)
-  mod <- pull(x, prec_imp_qm)
+  obs <- dplyr::pull(x, prec_qc_qm)
+  mod <- dplyr::pull(x, prec_imp_qm)
   qm_fit <- fitQmapRQUANT(obs, mod,
                           qstep = 0.01, nboot = 1, wet.day = 0.2)
   
@@ -20,6 +20,13 @@ QM <- function(x){
   
   return(qm_corrected)
 }
+
+make_correct_date <- function(x, dates){
+  
+  left_join(dates, x, by = "Date")
+  
+}
+
 
 make_nlpca <- function(x){
   
@@ -31,9 +38,17 @@ make_nlpca <- function(x){
     # # filter(row_number()==1) %>%
     # dplyr::select(Code, qc_climate) %>%
     # unnest()
+  
+  
+  seq_dates <- seq(ymd("1981-01-01"), ymd("2010-12-31"), by = "day") %>%
+    tibble::enframe(value = "Date",  name = NULL)
+  
+
   x <- x %>% 
   dplyr::select(Code, qc_climate) %>%
+    mutate(qc_climate = purrr::map(.x = qc_climate, .f = make_correct_date, seq_dates)) %>% 
     unnest()
+    
   
   dates <- x %>%
     dplyr::select(Code, Date, year, month, day)
@@ -46,9 +61,20 @@ make_nlpca <- function(x){
     dplyr::select(Code, id, prec_qc) %>% 
     spread(Code, prec_qc) %>%
     dplyr::select(-id)
-  
+
   # n_Pcs <- dim()
-  pc <- pca(x, nPcs = 3, method="nlpca",  maxSteps = 50)
+  if(dim(x)[2] < 10){
+    
+    nPcs = dim(x)[2]
+    
+  }else{
+    
+    nPcs = 10
+    
+  }
+
+
+  pc <- pca(x, nPcs = nPcs, method="nlpca",  maxSteps = 70000)
   
 
   imputed <- completeObs(pc) %>% 
@@ -102,13 +128,18 @@ x <- cluster_sf %>%
 
 library(furrr)
 library(future)
-x <- pluck(x, 1)
+x <- pluck(x, 2)
 options(future.globals.maxSize= 891289600)
 plan(future::cluster, workers = 15)
+# plan(future::session, workers = 15)
 
 x <-  furrr::future_map(.x = x, make_nlpca)
-
-for(i in 1:)
+y <- list()
+for(i in 1:2){
+  
+  print(i)
+  y[[i]] <- make_nlpca(x[[i]])
+}
 2 * prod(dim(x))
 x <- cluster_sf %>%
   group_split(cluster_inside) %>%
