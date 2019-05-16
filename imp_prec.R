@@ -134,36 +134,23 @@ plan(future::cluster, workers = 15)
 # plan(future::session, workers = 15)
 
 x <-  furrr::future_map(.x = x, make_nlpca)
-y <- list()
-for(i in 1:2){
-  
-  print(i)
-  y[[i]] <- make_nlpca(x[[i]])
-}
-2 * prod(dim(x))
-x <- cluster_sf %>%
-  group_split(cluster_inside) %>%
-  purrr::pluck(1) %>%
-  # filter(row_number()==1) %>%
-  dplyr::select(Code, qc_climate) %>%
+
+x <- bind_rows(x)
+write_ideam(x, filename = "fill_prec_IDEAM_1981_2010.json")
+
+install.packages("MixedPoisson")
+library(MixedPoisson)
+library(extraDistr)
+
+library(MASS)	
+index = which(quine$Days<11)
+reg = quine[index, -which(names(quine)=="Days")]
+pGamma1 = pg.dist(variable=quine$Days)
+
+rgpois(146, 15.73654, 0.9561112, 1.045903)
+variable=rpois(30,4)
+pseudo_values(variable, mixing="Gamma", lambda=4, gamma.par=0.7, n=100)
+
+x %>% 
+  filter(row_number()==1) %>% 
   unnest()
-
-x.na <- x %>%
-  dplyr::select(Code, prec_na) %>%
-  group_by(Code) %>%
-  mutate(id = row_number()) %>%
-  spread(Code, prec_na) %>%
-  dplyr::select(-id)
-
-pc <- pca(x.na, nPcs=5, method="nlpca")
-
-
-
-  
-  mutate(imp_prec = furrr::future_map(.x = ))
-
-simPopN <- data.frame(slope = 0.00237, 
-                      intercept=115.767,
-                      sigma = 2:6) %>%
-  crossing(n=10:100) 
-  
