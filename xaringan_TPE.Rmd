@@ -1,0 +1,448 @@
+---
+title: "TPE analysis for beans in post-conflict zones in Colombia"
+subtitle: "Fill Missing Data"
+author: "J. Mesa, P. Alvarez, J. Ramirez"
+institute: "CIAT"
+date: "`r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(echo = FALSE, fig.path = "figures/")
+library(sf)
+library(ggplot2)
+library(forcats)
+library(ggspatial)
+library(dplyr)
+library(tibble)
+library(gghighlight)
+library(ggrepel)
+post_conflict <- read_sf(dsn = "D:/CIAT/BACO/scripts/data/shapefile/conflicto.shp")
+```
+
+class: inverse, middle, center
+# BACCO
+- Bean Breeding for Adaptation to a Changing Climate in Post-Conflict Colombia
+
+---
+class: center
+# Posconflicto
+
+--
+.pull-left[
+```{r loadlib, echo=F, results='hide', message=F, warning=F,  dpi = 150, out.width='100%', fig.height= 10, fig.align = 'center'}
+
+
+
+post_conflict <- post_conflict %>% 
+  mutate(Indc___ = as_factor(Indc___)) %>% 
+  mutate(Indc___ = fct_relevel(Indc___, c("Bajo", "Medio bajo", "Medio", "Alto", "Muy Alto"))) %>% 
+  mutate(Indc___ = fct_relevel(Indc___, rev))
+
+ggplot() +
+  geom_sf(data = post_conflict, aes(fill = Indc___)) +
+  scale_fill_viridis_d("incidencia del conflicto armado", na.translate = F) +
+  theme_bw() +
+   labs(x = NULL, y = NULL,
+       title = "Índice de incidencia del conflicto armado (2002-2013)",
+       subtitle = "Tomado de: Departamento Nacional de Planeación \n Grupo de Proyectos Especiales",
+       caption = "DNP") +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"),
+        style = north_arrow_fancy_orienteering) +
+  theme(legend.position="bottom",
+        legend.key.width = unit(2, "cm"), 
+        legend.key.height = unit(0.7, "cm"))+
+   guides(fill = guide_legend(nrow=1,override.aes = list(alpha = 1), 
+                             label.position="bottom",
+                             label.hjust = -0.05, 
+                              title.position = "top"))
+
+```
+]
+
+--
+
+.pull-rigth[
+
+El índice se mide a partir de las siguientes variables
+
+1. Acciones Armadas; 
+1. Homicidio;
+1. Secuestro;
+1. Victima de Minas Antipersona; 
+1. Desplazamiento Forzado; 
+1. Cultivos de Coca;
+
+]
+
+<!-- --- -->
+<!-- # Grupo -->
+<!-- class: middle -->
+<!-- <img class="circle" src="/home/jeison/Documentos/CIAT/daily_wheather_generator/data/jeison.png" width="150px"/> -->
+
+
+<!-- --- -->
+
+---
+
+
+# Zonas más Afectadas
+
+
+```{r  echo=F, results='hide', message=F, warning=F, dpi = 150, out.width='50%', fig.height= 10, fig.align = 'center'}
+
+# geometry_to_lonlat <- function(x) {
+#   if (any(sf::st_geometry_type(x) != "POINT")) {
+#     stop("Selecting non-points isn't implemented.")
+#   }
+#   coord_df <- sf::st_transform(x, sf::st_crs("+proj=longlat +datum=WGS84")) %>%
+#     sf::st_coordinates() %>%
+#     dplyr::as_tibble() %>%
+#     dplyr::select(X, Y) %>%
+#     dplyr::rename(lon = X, lat = Y)
+#   out <- sf::st_set_geometry(x, NULL) %>%
+#     dplyr::bind_cols(coord_df)
+#   return(out)
+# }
+
+high_conflict <- post_conflict %>%
+  filter(Indc___ %in% c("Muy Alto", "Alto"))
+
+dpto_conflict <- high_conflict %>%
+  group_by(NOMBRE_) %>%
+  summarise()  #%>%
+  # ungroup() %>%
+  # mutate(NOMBRE_ = fct_explicit_na(NOMBRE_))
+  # st_centroid %>%
+  # geometry_to_lonlat
+
+post_conflict <- post_conflict %>% 
+  mutate(Indc___ = fct_explicit_na(Indc___))
+
+ggplot() +
+  geom_sf(data = post_conflict, fill =NA, color = ggplot2::alpha("grey", 0.7) ,size=0.125) +
+  geom_sf(data = high_conflict, aes(fill = Indc___)) +
+  # gghighlight(Indc___ %in% c("Muy Alto", "Alto")) +
+  geom_sf_label(data = dpto_conflict, aes(label = NOMBRE_), label.padding = unit(0.09, "lines"),
+  label.r = unit(0.09, "lines"), label.size = 0.09) +
+  # geom_text_repel(data = dpto_conflict, aes(x = lon, y = lat, label = NOMBRE_),
+  #       fontface = "bold")+
+  scale_fill_viridis_d("incidencia del conflicto armado", na.translate = F) +
+  # scale_y_continuous(expand = expand_scale(mult = 0.5))+
+  theme_bw() +
+   labs(x = NULL, y = NULL,
+       title = "Índice de incidencia del conflicto armado (2002-2013)",
+       subtitle = "Tomado de: Departamento Nacional de Planeación \n Grupo de Proyectos Especiales",
+       caption = "DNP") +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.75, "in"), pad_y = unit(0.5, "in"),
+        style = north_arrow_fancy_orienteering) +
+  theme(legend.position="bottom",
+        legend.key.width = unit(2, "cm"), 
+        legend.key.height = unit(0.7, "cm"))+
+   guides(fill = guide_legend(nrow=1,override.aes = list(alpha = 1), 
+                             label.position="bottom",
+                             label.hjust = -0.05, 
+                              title.position = "top"))
+
+```
+
+---
+
+# Acuerdo de Paz de Colombia
+
+--
+
+- Establece una visión a largo plazo en la que la tierra y el capital se proporcionan a los excombatientes y otros equipos vulnerables en apoyo de proyectos productivos agropecuarios;
+
+--
+
+- Los excombatientes se encuentran actualmente en áreas rurales llamadas Espacios Territoriales de Capacitación y Reincorporación (ETCR);
+
+
+--
+
+
+- **PNUD**<sup>*</sup> ha comenzado recientemente a poner en marcha proyectos agrícolas para excombatientes en estos ETCR;
+
+.footnote[[*]Programa de las Naciones Unidas para el Desarrollo]
+
+---
+
+class: inverse, middle, center
+# Dry Beans
+
+--
+
+- La productividad del frijol será limitado por las altas temperaturas <sup>*</sup>;
+
+--
+
+- Del mismo modo, la sequía y el calor en la región han demostrado que el estrés tienen un impacto en la aptitud para la producción de frijol en la mayor parte de Colombia;
+
+.footnote[[*] Tercera Comunicación de Cambio Climático para Colombia]
+
+---
+class: inverse, middle, center
+# Qué debemos hacer para ayudar a los excombatientes para tener sistemas productivos adaptados a altas temperaturas???
+
+--
+## MAGIA
+
+--
+
+## Era Broma
+
+---
+
+class: center
+
+# Zonas de interes
+
+
+- Establecer ensayos experimentales en busca de mejoramiento genético
+
+--
+
+<img src="figures/baco_points.png" width="390">
+
+---
+
+class: center, middle
+
+# Ó
+
+--
+
+# Modelación de cultivos para conocer la respuesta de diferentes variedades a estrés por altas temperaturas y sequía
+
+--
+<img src="figures/DSSAT.png" width="390">
+---
+
+# Pero qué necesitamos?
+
+
+--
+.pull-left[
+
+- Informacíon climática ;  <img src="figures/clima_emoticon.png" width="45">
+
+
+.pull-left[
+
+Linea Base
+1981-2010
+
+]
+
+.pull-right[
+
+
+Escenarios Futuros
+2050's 0 2070's
+]
+
+]
+
+--
+
+.pull-right[
+
+- Información de Caracteristicas del suelo;
+
+<p align="center">
+<img src="figures/caracteristicas_suelo.png" width="110" align="center">
+</p>
+
+- Manejo de cultivo;
+
+<p align="center">
+<img src="figures/manejo_cultivo.png" width="110" align="center">
+</p>
+
+- Variedades Calibradas;
+
+<p align="center">
+<img src="figures/calibracion_modelo.png" width="190" align="center">
+</p>
+
+]
+
+
+
+---
+class: inverse, middle, center
+
+# Rumores Acerca de la información climática
+
+--
+## Mucha información climática del IDEAM
+
+--
+
+## Pero...
+
+---
+
+# Control de Calidad
+
+<p align="center">
+<img src="figures/IDEAM.png" width="800">
+</p>
+
+---
+
+# Control de Calidad
+
+<p align="center">
+<img src="figures/IDEAM_na.png" width="800">
+</p>
+
+
+
+---
+
+class: inverse, middle, center
+
+# Rumor
+
+--
+
+## Utiliza CHIRPS para rellenar los datos que te faltan
+
+--
+
+## Muchos dicen es facil
+
+--
+## Pero
+
+--
+
+## Qué tan cierto será para información diaria?
+
+---
+
+# Correlación IDEAM vs CHIRPS
+
+<p align="center">
+<img src="figures/corr.png" width="800">
+</p>
+
+---
+class: inverse, middle, center
+
+# Y Ahora?
+
+---
+.pull-left[
+<p align="center">
+<img src="figures/multiple_imputacion.png" width="850">
+</p>
+]
+
+--
+
+.pull-right[
+
+Comparan diferentes métodos para imputar precipitación
+
+1. k-Nearest Neighbor (KNN);
+1. Iterated Local Least Squares (ILLS);
+1. Reguralized Expectation Maximization (RegEM);
+1. Principal Component Analysis approaches (PPCA, VBPCA);
+1. Data Interpolating Empirical Orthogonal Functions (DINEOF);
+1. Self-Organizing Map  (SOM);
+1. Non-linear Principal Component Analysis (NLPCA);
+1. Hybrid approaches (SOM+EOF, NLPCA+EOF);
+]
+---
+
+# Pos Procesamiento
+
+## Quantile Mapping QM
+
+- Los días secos son tomados como valores censurados por la izquierda para valores de 0.2;
+- Los ceros en la información observada e imputada son reemplazados por valores aleatorios de una distribución uniforme diferente de 0  para los datos censurados, antes de aplicar QM;
+
+--
+
+- Esta medida corrige el sesgo en la frecuencia en días húmedos
+
+---
+
+# Conclusiones
+
+.pull-left[
+<p align="center">
+<img src="figures/comparacion_metodos.png" width="999" height="400">
+</p>
+]
+
+--
+
+.pull-right[
+<p align="center">
+<img src="figures/r_2_comparacion_metodos.png" width="999" height="400">
+</p>
+]
+
+---
+
+# Dynamic Time Warping Clustering
+
+<p align="center">
+<img src="figures/dtw.png" width="800">
+</p>
+
+
+---
+
+# Dynamic Time Warping Clustering
+
+<p align="center">
+<img src="figures/time_series-1.png" width="800">
+</p>
+
+---
+
+## Density-Based Spatial Clustering
+
+<p align="center">
+<img src="figures/time_series_inside-1.png" width="790">
+</p>
+
+
+
+---
+
+# Resultados
+
+<p align="center">
+<img src="figures/obs_estim-1.png" width="790">
+</p>
+
+
+---
+
+# Fué posible gracias a:
+
+- Patricia Alvarez;
+- Alejandra Esquivel;
+- Jaime Tarapues;
+- Edward Guevara
+- Jeferson Rodriguez;
+- Leonardo Ordoñez;
